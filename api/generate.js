@@ -1,15 +1,30 @@
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY
+});
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { text, price } = req.body;
-
-  if (!text) {
-    return res.status(400).json({ error: "Missing project text" });
+  if (!process.env.GEMINI_API_KEY) {
+    return res.status(500).json({
+      error: "AI is not configured."
+    });
   }
 
-  const prompt = `
+  try {
+    const { text, price } = req.body || {};
+
+    if (!text || !price) {
+      return res.status(200).json({
+        error: "Missing project description or price."
+      });
+    }
+
+    const prompt = `
 You are an assistant helping freelancers convert messy project descriptions into a clear, professional project agreement.
 
 Your job is to:
@@ -19,7 +34,7 @@ Your job is to:
 - Never assume timelines, revisions, or payment terms
 - Keep language neutral and client-facing
 
-STRICT OUTPUT FORMAT:
+STRICT OUTPUT FORMAT (do not deviate):
 
 Deliverables:
 - item
@@ -28,59 +43,53 @@ Exclusions:
 - item
 
 Client Summary:
-paragraph
+short professional paragraph
 
 Rules:
-- If unclear, put it under Exclusions
+- If something is unclear, place it under Exclusions
 - Do not add new information
-- No emojis, no casual tone
+- No emojis
+- No casual tone
 
-INPUT:
+Project description:
 ${text}
 
-PRICE (reference only): ${price}
-`;
+Project price (reference only, do not reinterpret):
+${price}
+`.trim();
 
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }]
-            }
-          ]
-        })
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }]
+        }
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 400
       }
-    );
+    });
 
-    const data = await response.json();
+    const outputText = response?.text;
 
-    // HARD VALIDATION
-    if (
-      !data ||
-      !data.candidates ||
-      !data.candidates[0] ||
-      !data.candidates[0].content ||
-      !data.candidates[0].content.parts ||
-      !data.candidates[0].content.parts[0]
-    ) {
-      console.error("BAD GEMINI RESPONSE:", data);
-      return res.status(500).json({
-        error: "Gemini returned an invalid response"
+    if (!outputText) {
+      return res.status(200).json({
+        error: "AI could not generate a response."
       });
     }
 
-    const output = data.candidates[0].content.parts[0].text;
+    // -------- PARSING (defensive but simple) --------
 
-    // PARSE
-    const deliverablesBlock = output.split("Exclusions:")[0] || "";
+    const deliverablesBlock =
+      outputText.split("Exclusions:")[0] || "";
+
     const exclusionsBlock =
-      output.split("Exclusions:")[1]?.split("Client Summary:")[0] || "";
-    const summaryBlock = output.split("Client Summary:")[1] || "";
+      outputText.split("Exclusions:")[1]?.split("Client Summary:")[0] || "";
+
+    const summaryBlock =
+      outputText.split("Client Summary:")[1] || "";
 
     const deliverables = deliverablesBlock
       .replace("Deliverables:", "")
@@ -95,14 +104,16 @@ PRICE (reference only): ${price}
       .filter(l => l.startsWith("-"))
       .map(l => l.slice(2));
 
-    res.status(200).json({
+    return res.status(200).json({
       deliverables,
       exclusions,
       summary: summaryBlock.trim()
     });
 
   } catch (err) {
-    console.error("SERVER ERROR:", err);
-    res.status(500).json({ error: "Server failed to generate scope" });
+    console.error("Gemini failure:", err);
+    return res.status(200).json({
+      error: "Failed to generate scope."
+    });
   }
 }
