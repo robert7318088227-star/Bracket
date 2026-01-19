@@ -5,8 +5,8 @@ export default async function handler(req, res) {
 
   const { text, price } = req.body;
 
-  if (!text || !price) {
-    return res.status(400).json({ error: "Missing input" });
+  if (!text) {
+    return res.status(400).json({ error: "Missing project text" });
   }
 
   const prompt = `
@@ -19,84 +19,91 @@ Your job is to:
 - Never assume timelines, revisions, or payment terms
 - Keep language neutral and client-facing
 
-Output ONLY in this structure:
+STRICT OUTPUT FORMAT:
 
 Deliverables:
-- …
+- item
 
 Exclusions:
-- …
+- item
 
 Client Summary:
-(1–2 short paragraphs)
+paragraph
 
 Rules:
 - If unclear, put it under Exclusions
 - Do not add new information
 - No emojis, no casual tone
 
-Input:
+INPUT:
 ${text}
 
-Price (reference only): ${price}
+PRICE (reference only): ${price}
 `;
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }]
+            }
+          ]
         })
       }
     );
 
     const data = await response.json();
 
-    // 🔒 Defensive checks
+    // 🔒 HARD STOP if Gemini misbehaves
     if (
+      !data ||
       !data.candidates ||
-      !data.candidates.length ||
+      !Array.isArray(data.candidates) ||
+      !data.candidates[0] ||
       !data.candidates[0].content ||
       !data.candidates[0].content.parts ||
-      !data.candidates[0].content.parts.length
+      !data.candidates[0].content.parts[0]
     ) {
+      console.error("BAD GEMINI RESPONSE:", data);
       return res.status(500).json({
-        error: "Gemini returned an unexpected response"
+        error: "Gemini returned an invalid response"
       });
     }
 
-    const outputText = data.candidates[0].content.parts[0].text;
+    const textOutput = data.candidates[0].content.parts[0].text;
 
-    // Safe parsing
-    const deliverables = outputText
-      .split("Exclusions:")[0]
+    // ---------- PARSING ----------
+    const deliverablesBlock = textOutput.split("Exclusions:")[0] || "";
+    const exclusionsBlock = textOutput.split("Exclusions:")[1]?.split("Client Summary:")[0] || "";
+    const summaryBlock = textOutput.split("Client Summary:")[1] || "";
+
+    const deliverables = deliverablesBlock
       .replace("Deliverables:", "")
-      .trim()
       .split("\n")
+      .map(l => l.trim())
       .filter(l => l.startsWith("-"))
-      .map(l => l.replace("- ", ""));
+      .map(l => l.slice(2));
 
-    const exclusions = outputText
-      .split("Exclusions:")[1]
-      .split("Client Summary:")[0]
-      .trim()
+    const exclusions = exclusionsBlock
       .split("\n")
+      .map(l => l.trim())
       .filter(l => l.startsWith("-"))
-      .map(l => l.replace("- ", ""));
-
-    const summary = outputText.split("Client Summary:")[1]?.trim() || "";
+      .map(l => l.slice(2));
 
     res.status(200).json({
       deliverables,
       exclusions,
-      summary
+      summary: summaryBlock.trim()
     });
 
   } catch (err) {
-    console.error("SERVER ERROR:", err);
-    res.status(500).json({ error: "Failed to generate scope" });
+    console.error("SERVER FAILURE:", err);
+    res.status(500).json({ error: "Server failed to generate scope" });
   }
 }
