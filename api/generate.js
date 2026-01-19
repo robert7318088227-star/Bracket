@@ -5,6 +5,10 @@ export default async function handler(req, res) {
 
   const { text, price } = req.body;
 
+  if (!text || !price) {
+    return res.status(400).json({ error: "Missing input" });
+  }
+
   const prompt = `
 You are an assistant helping freelancers convert messy project descriptions into a clear, professional project agreement.
 
@@ -34,7 +38,7 @@ Rules:
 Input:
 ${text}
 
-Price (for reference only): ${price}
+Price (reference only): ${price}
 `;
 
   try {
@@ -50,10 +54,24 @@ Price (for reference only): ${price}
     );
 
     const data = await response.json();
-    console.log("RAW GEMINI RESPONSE:", JSON.stringify(data, null, 2));
 
-    // Parse response
-    const deliverables = output
+    // 🔒 Defensive checks
+    if (
+      !data.candidates ||
+      !data.candidates.length ||
+      !data.candidates[0].content ||
+      !data.candidates[0].content.parts ||
+      !data.candidates[0].content.parts.length
+    ) {
+      return res.status(500).json({
+        error: "Gemini returned an unexpected response"
+      });
+    }
+
+    const outputText = data.candidates[0].content.parts[0].text;
+
+    // Safe parsing
+    const deliverables = outputText
       .split("Exclusions:")[0]
       .replace("Deliverables:", "")
       .trim()
@@ -61,7 +79,7 @@ Price (for reference only): ${price}
       .filter(l => l.startsWith("-"))
       .map(l => l.replace("- ", ""));
 
-    const exclusions = output
+    const exclusions = outputText
       .split("Exclusions:")[1]
       .split("Client Summary:")[0]
       .trim()
@@ -69,7 +87,7 @@ Price (for reference only): ${price}
       .filter(l => l.startsWith("-"))
       .map(l => l.replace("- ", ""));
 
-    const summary = output.split("Client Summary:")[1].trim();
+    const summary = outputText.split("Client Summary:")[1]?.trim() || "";
 
     res.status(200).json({
       deliverables,
@@ -78,7 +96,7 @@ Price (for reference only): ${price}
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to generate scope." });
+    console.error("SERVER ERROR:", err);
+    res.status(500).json({ error: "Failed to generate scope" });
   }
 }
