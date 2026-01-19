@@ -43,14 +43,13 @@ PRICE (reference only): ${price}
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [
             {
-              role: "user",
               parts: [{ text: prompt }]
             }
           ]
@@ -60,11 +59,10 @@ PRICE (reference only): ${price}
 
     const data = await response.json();
 
-    // 🔒 HARD STOP if Gemini misbehaves
+    // HARD VALIDATION
     if (
       !data ||
       !data.candidates ||
-      !Array.isArray(data.candidates) ||
       !data.candidates[0] ||
       !data.candidates[0].content ||
       !data.candidates[0].content.parts ||
@@ -76,12 +74,13 @@ PRICE (reference only): ${price}
       });
     }
 
-    const textOutput = data.candidates[0].content.parts[0].text;
+    const output = data.candidates[0].content.parts[0].text;
 
-    // ---------- PARSING ----------
-    const deliverablesBlock = textOutput.split("Exclusions:")[0] || "";
-    const exclusionsBlock = textOutput.split("Exclusions:")[1]?.split("Client Summary:")[0] || "";
-    const summaryBlock = textOutput.split("Client Summary:")[1] || "";
+    // PARSE
+    const deliverablesBlock = output.split("Exclusions:")[0] || "";
+    const exclusionsBlock =
+      output.split("Exclusions:")[1]?.split("Client Summary:")[0] || "";
+    const summaryBlock = output.split("Client Summary:")[1] || "";
 
     const deliverables = deliverablesBlock
       .replace("Deliverables:", "")
@@ -103,7 +102,7 @@ PRICE (reference only): ${price}
     });
 
   } catch (err) {
-    console.error("SERVER FAILURE:", err);
+    console.error("SERVER ERROR:", err);
     res.status(500).json({ error: "Server failed to generate scope" });
   }
 }
