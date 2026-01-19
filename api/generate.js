@@ -25,31 +25,36 @@ export default async function handler(req, res) {
     }
 
     const prompt = `
-You are an assistant helping freelancers convert messy project descriptions into a clear, professional project agreement.
+You are an assistant helping freelancers protect project scope and prevent expectation drift.
 
-Your job is to:
-- Extract what is included and what is not included
-- Remove ambiguity and casual language
-- Never invent new requirements
-- Never assume timelines, revisions, or payment terms
-- Keep language neutral and client-facing
+Your primary responsibility is NOT to summarize, but to enforce clarity.
 
-STRICT OUTPUT FORMAT (do not deviate):
+You must:
+- Aggressively remove ambiguity
+- Convert vague or conditional statements into exclusions
+- Deduplicate overlapping deliverables
+- Normalize messy language into precise commitments
+- Bias toward excluding anything that could be misinterpreted later
+
+STRICT RULES:
+- Anything optional, uncertain, future-looking, or conditional MUST go under Exclusions
+- Never split similar ideas into multiple deliverables
+- Never invent scope
+- Never assume timelines, revisions, maintenance, or responsibility unless explicitly stated
+- If a line cannot be defended in a scope dispute, it does not belong in Deliverables
+
+Output ONLY in the following structure:
 
 Deliverables:
-- item
+- (clear, defensible, concrete commitments)
 
 Exclusions:
-- item
+- (anything unclear, optional, assumed, or explicitly excluded)
 
 Client Summary:
-short professional paragraph
-
-Rules:
-- If something is unclear, place it under Exclusions
-- Do not add new information
-- No emojis
-- No casual tone
+- A short, formal paragraph derived ONLY from the above lists
+- No new information
+- No soft language
 
 Project description:
 ${text}
