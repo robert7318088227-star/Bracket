@@ -67,6 +67,11 @@ CRITICAL CONSTRAINTS:
 - Be humanized & empathatic as much as possible
 - Sound like a consultant not an AI
 
+ABSOLUTE RULE:
+A Deliverable must describe a concrete, observable action or output.
+Style references, quality adjectives, inspiration sources, or implied effort are NOT deliverables and must be excluded.
+
+
 Project description:
 ${text}
 
