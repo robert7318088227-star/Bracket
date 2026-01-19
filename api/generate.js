@@ -50,7 +50,7 @@ Price (for reference only): ${price}
     );
 
     const data = await response.json();
-    const output = data.candidates[0].content.parts[0].text;
+    console.log("RAW GEMINI RESPONSE:", JSON.stringify(data, null, 2));
 
     // Parse response
     const deliverables = output
