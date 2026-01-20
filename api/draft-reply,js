@@ -11,15 +11,14 @@ export default async function handler(req, res) {
       keyPointsToClarify
     } = req.body;
 
-    // Validation
     if (!clientMessage || !role || !verdict) {
       return res.status(400).json({
         error: "Missing required fields"
       });
     }
 
-    const systemPrompt = `
-You are an assistant helping a freelancer draft their first reply to a client.
+    const prompt = `
+You are helping a freelancer draft their FIRST reply to a client.
 
 This reply must be:
 - Professional
@@ -28,80 +27,63 @@ This reply must be:
 - Clear about boundaries
 - Free of over-promising
 
-You are NOT accepting the project.
-You are NOT negotiating price.
-You are NOT revealing internal analysis.
+Important rules:
+- Do NOT accept the project
+- Do NOT negotiate pricing
+- Do NOT reveal internal analysis
+- Do NOT mention risks or red flags
+- Do NOT sound salesy or overly enthusiastic
 
-Your goal is to:
-- Acknowledge the client’s message
-- Ask for clarification where needed
-- Set expectations early
-- Keep tone aligned with the user’s role
+Tone guidance:
+- Executor → neutral, task-focused
+- Collaborator → cooperative but bounded
+- Decision Maker → confident and structured
 
-Tone guidance by role:
-- Executor: clear, task-focused, neutral
-- Collaborator: cooperative but bounded
-- Decision Maker: confident, structured, firm
-`;
+Context:
 
-    const userPrompt = `
 Client message:
 ${clientMessage}
 
 User role:
 ${role}
 
-Internal verdict (DO NOT mention this explicitly):
+Internal verdict (DO NOT mention):
 ${verdict}
 
-Key points that need clarification:
-${keyPointsToClarify && keyPointsToClarify.length
-  ? keyPointsToClarify.map(p => "- " + p).join("\n")
+Key points to clarify:
+${keyPointsToClarify?.length
+  ? keyPointsToClarify.map(p => `- ${p}`).join("\n")
   : "None explicitly listed"}
 
 TASK:
-Draft a first reply to the client that:
-
-- Sounds natural and human
-- Matches the user’s role
-- Politely asks for clarification where required
-- Does not commit to unclear scope
-- Suggests a sensible next step (e.g., clarifying details or a follow-up call)
-
-Rules:
-- Do NOT mention risks, red flags, or internal reasoning
-- Do NOT include legal or contractual language
-- Do NOT sound salesy or overly enthusiastic
-- Keep it concise (1–2 short paragraphs)
+Write a concise first reply (1–2 short paragraphs) that:
+- Acknowledges the message
+- Politely asks for clarification where needed
+- Suggests a reasonable next step (e.g. clarifying details or a follow-up call)
 `;
 
     const geminiResponse = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" +
-        process.env.GEMINI_API_KEY,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-latest:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: systemPrompt },
-                { text: userPrompt }
-              ]
-            }
-          ]
+          contents: [{ parts: [{ text: prompt }] }]
         })
       }
     );
 
-    if (!geminiResponse.ok) {
-      throw new Error("Gemini API failed");
+    const geminiData = await geminiResponse.json();
+
+    console.log("RAW GEMINI RESPONSE:", JSON.stringify(geminiData, null, 2));
+
+    if (!geminiData.candidates?.length) {
+      return res.status(500).json({
+        error: "No reply generated",
+        raw: geminiData
+      });
     }
 
-    const geminiData = await geminiResponse.json();
     const replyText = geminiData.candidates[0].content.parts[0].text;
 
     return res.status(200).json({
@@ -109,8 +91,9 @@ Rules:
     });
 
   } catch (error) {
+    console.error("DRAFT REPLY ERROR:", error);
     return res.status(500).json({
-      error: "Failed to draft reply"
+      error: error.message || "Failed to draft reply"
     });
   }
 }
