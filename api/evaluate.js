@@ -1,3 +1,5 @@
+import fetch from "node-fetch";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -14,11 +16,8 @@ export default async function handler(req, res) {
       price
     } = req.body;
 
-    // Basic validation (backend-level)
     if (!projectTitle || !clientMessage || !role) {
-      return res.status(400).json({
-        error: "Missing required fields"
-      });
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
     const systemPrompt = `
@@ -26,76 +25,26 @@ You are BRACKET, an assistant that helps freelancers evaluate incoming client pr
 before replying.
 
 Your role is to assess clarity, risk, and responsibility — not to persuade or sell.
-
-You must:
-- Read the client message carefully
-- Factor in the user’s selected role (Executor, Collaborator, Decision Maker)
-- Consider any selected red flags
-- Respect the provided scope, deliverables, and pricing
-- Be calm, neutral, and practical
-
-DO NOT:
-- Write a reply to the client
-- Add enthusiasm or emotional language
-- Invent missing details
-- Assume agreement or acceptance
-
-Your job is to help the user think clearly.
+Be calm, neutral, and practical.
+Do not write a reply to the client.
 `;
 
     const userPrompt = `
-Project title:
-${projectTitle}
+Project title: ${projectTitle}
 
 Client message:
 ${clientMessage}
 
-User role:
-${role}
+User role: ${role}
 
 Selected red flags:
-${redFlags && redFlags.length ? redFlags.join(", ") : "None"}
+${redFlags?.length ? redFlags.join(", ") : "None"}
 
-Scope:
-${scope || "Not specified"}
+Scope: ${scope || "Not specified"}
+Deliverables: ${deliverables || "Not specified"}
+Price: ${price || "Not specified"}
 
-Deliverables:
-${deliverables || "Not specified"}
-
-Price:
-${price || "Not specified"}
-
-TASK:
-Generate the following outputs.
-
-1. SUMMARY TABLE
-Include exactly these rows:
-- Project
-- Role
-- Risk (Proceed / Caution / High Risk)
-- Price
-
-2. AI RECOMMENDATION
-Structure strictly as:
-
-A. Verdict
-(one short paragraph)
-
-B. Key points to clarify
-(bulleted list)
-
-C. Potential issues to watch out for
-(bulleted list)
-
-D. Suggested response strategy
-(short, practical guidance — not a draft reply)
-
-Rules:
-- Be realistic and protective of the freelancer
-- If something is unclear, flag it instead of assuming
-- Keep language concise and professional
-- Output MUST be valid JSON using this schema:
-
+Return ONLY valid JSON in this schema:
 {
   "summary": {
     "project": "",
@@ -112,51 +61,43 @@ Rules:
 }
 `;
 
+    const combinedPrompt = `
+SYSTEM INSTRUCTIONS:
+${systemPrompt}
+
+USER CONTEXT:
+${userPrompt}
+`;
+
     const geminiResponse = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" +
-        process.env.GEMINI_API_KEY,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: systemPrompt },
-                { text: userPrompt }
-              ]
-            }
-          ]
+          contents: [{ parts: [{ text: combinedPrompt }] }]
         })
       }
     );
 
-    if (!geminiResponse.ok) {
-      throw new Error("Gemini API failed");
-    }
-
     const geminiData = await geminiResponse.json();
-    const rawText = geminiData.candidates[0].content.parts[0].text;
 
-    // Parse JSON safely
-    let parsed;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch (err) {
-      return res.status(500).json({
-        error: "AI response could not be parsed",
-        raw: rawText
-      });
+    if (!geminiData.candidates?.length) {
+      return res.status(500).json({ error: "Empty Gemini response", raw: geminiData });
     }
 
+    const rawText = geminiData.candidates[0].content.parts[0].text;
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      return res.status(500).json({ error: "No JSON found", raw: rawText });
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
     return res.status(200).json(parsed);
 
   } catch (error) {
-    return res.status(500).json({
-      error: "Internal evaluation error"
-    });
+    console.error("EVALUATE ERROR:", error);
+    return res.status(500).json({ error: error.message });
   }
 }
