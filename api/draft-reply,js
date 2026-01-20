@@ -1,0 +1,116 @@
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  try {
+    const {
+      clientMessage,
+      role,
+      verdict,
+      keyPointsToClarify
+    } = req.body;
+
+    // Validation
+    if (!clientMessage || !role || !verdict) {
+      return res.status(400).json({
+        error: "Missing required fields"
+      });
+    }
+
+    const systemPrompt = `
+You are an assistant helping a freelancer draft their first reply to a client.
+
+This reply must be:
+- Professional
+- Calm and respectful
+- Human (not AI-sounding)
+- Clear about boundaries
+- Free of over-promising
+
+You are NOT accepting the project.
+You are NOT negotiating price.
+You are NOT revealing internal analysis.
+
+Your goal is to:
+- Acknowledge the client’s message
+- Ask for clarification where needed
+- Set expectations early
+- Keep tone aligned with the user’s role
+
+Tone guidance by role:
+- Executor: clear, task-focused, neutral
+- Collaborator: cooperative but bounded
+- Decision Maker: confident, structured, firm
+`;
+
+    const userPrompt = `
+Client message:
+${clientMessage}
+
+User role:
+${role}
+
+Internal verdict (DO NOT mention this explicitly):
+${verdict}
+
+Key points that need clarification:
+${keyPointsToClarify && keyPointsToClarify.length
+  ? keyPointsToClarify.map(p => "- " + p).join("\n")
+  : "None explicitly listed"}
+
+TASK:
+Draft a first reply to the client that:
+
+- Sounds natural and human
+- Matches the user’s role
+- Politely asks for clarification where required
+- Does not commit to unclear scope
+- Suggests a sensible next step (e.g., clarifying details or a follow-up call)
+
+Rules:
+- Do NOT mention risks, red flags, or internal reasoning
+- Do NOT include legal or contractual language
+- Do NOT sound salesy or overly enthusiastic
+- Keep it concise (1–2 short paragraphs)
+`;
+
+    const geminiResponse = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" +
+        process.env.GEMINI_API_KEY,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: systemPrompt },
+                { text: userPrompt }
+              ]
+            }
+          ]
+        })
+      }
+    );
+
+    if (!geminiResponse.ok) {
+      throw new Error("Gemini API failed");
+    }
+
+    const geminiData = await geminiResponse.json();
+    const replyText = geminiData.candidates[0].content.parts[0].text;
+
+    return res.status(200).json({
+      reply: replyText.trim()
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      error: "Failed to draft reply"
+    });
+  }
+}
