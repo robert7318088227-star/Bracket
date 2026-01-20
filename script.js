@@ -30,6 +30,45 @@ const strategyOutput = document.getElementById("strategyOutput");
 // HELPERS
 // =========================
 
+const draftReplyBtn = document.getElementById("draftReplyBtn");
+
+draftReplyBtn.addEventListener("click", async () => {
+  draftReplyBtn.disabled = true;
+  draftReplyBtn.innerText = "Drafting reply…";
+
+  try {
+    const response = await fetch("/api/draft-reply", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        clientMessage: document.getElementById("clientMessage").value,
+        role: document.querySelector('input[name="role"]:checked').value,
+        verdict: document.getElementById("verdictOutput").innerText,
+        keyPointsToClarify: Array.from(
+          document.querySelectorAll("#clarifyOutput li")
+        ).map(li => li.innerText)
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("Draft reply failed");
+    }
+
+    const data = await response.json();
+
+    alert("Drafted reply:\n\n" + data.reply);
+
+  } catch (err) {
+    alert("Could not draft reply. Check logs.");
+  } finally {
+    draftReplyBtn.disabled = false;
+    draftReplyBtn.innerText = "Draft your first reply";
+  }
+});
+
+
 function getSelectedRole() {
   const roles = document.querySelectorAll('input[name="role"]');
   for (const role of roles) {
