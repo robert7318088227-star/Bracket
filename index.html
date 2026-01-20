@@ -2,41 +2,135 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>BRACKET – Phase 1</title>
+  <title>BRACKET – Phase 01</title>
 </head>
 <body>
 
-  <h1>BRACKET – Scope Shaper</h1>
+  <h1>BRACKET – Project Evaluation</h1>
+
+  <!-- STEP 1 -->
+  <h2>Step 1: Project Context</h2>
 
   <label>
-    Project description
+    Project title *
     <br />
-    <textarea id="projectInput" rows="10" cols="80"></textarea>
+    <input type="text" id="projectTitle" />
   </label>
 
   <br /><br />
 
   <label>
-    Project price
+    Client message *
     <br />
-    <input type="number" id="priceInput" />
+    <textarea id="clientMessage" rows="8" cols="80"></textarea>
   </label>
 
   <br /><br />
 
-  <button id="generateBtn">Generate Scope</button>
+  <!-- STEP 2 -->
+  <h2>Step 2: Red Flags (optional)</h2>
+
+  <label><input type="checkbox" value="Vague scope" /> Vague scope</label><br />
+  <label><input type="checkbox" value="Unclear budget" /> Unclear budget</label><br />
+  <label><input type="checkbox" value="Tight timeline" /> Tight timeline</label><br />
+  <label><input type="checkbox" value="We’ll figure it out later language" /> “We’ll figure it out later” language</label><br />
+  <label><input type="checkbox" value="Multiple decision makers" /> Multiple decision makers</label><br />
+
+  <br />
+
+  <!-- STEP 3 -->
+  <h2>Step 3: Your Role *</h2>
+
+  <label>
+    <input type="radio" name="role" value="Executor" /> Executor
+  </label><br />
+
+  <label>
+    <input type="radio" name="role" value="Collaborator" /> Collaborator
+  </label><br />
+
+  <label>
+    <input type="radio" name="role" value="Decision Maker" /> Decision Maker
+  </label>
+
+  <br /><br />
+
+  <!-- STEP 4 -->
+  <h2>Step 4: Scope & Pricing</h2>
+
+  <label>
+    Scope
+    <br />
+    <textarea id="scope" rows="4" cols="80"></textarea>
+  </label>
+
+  <br /><br />
+
+  <label>
+    Deliverables
+    <br />
+    <textarea id="deliverables" rows="4" cols="80"></textarea>
+  </label>
+
+  <br /><br />
+
+  <label>
+    Price
+    <br />
+    <input type="number" id="price" />
+  </label>
+
+  <br /><br />
+
+  <button id="evaluateBtn">Evaluate Project</button>
 
   <hr />
 
-  <h2>Deliverables</h2>
-  <ul id="deliverablesOutput"></ul>
+  <!-- OUTPUT -->
+  <h2>Summary</h2>
 
-  <h2>Exclusions</h2>
-  <ul id="exclusionsOutput"></ul>
+  <table border="1" cellpadding="8">
+    <tr>
+      <td>Project</td>
+      <td id="summaryProject"></td>
+    </tr>
+    <tr>
+      <td>Role</td>
+      <td id="summaryRole"></td>
+    </tr>
+    <tr>
+      <td>Risk</td>
+      <td id="summaryRisk"></td>
+    </tr>
+    <tr>
+      <td>Price</td>
+      <td id="summaryPrice"></td>
+    </tr>
+  </table>
 
-  <h2>Client Summary</h2>
-  <p id="summaryOutput"></p>
+  <br />
+
+  <h2>AI Recommendation</h2>
+
+  <h3>A. Verdict</h3>
+  <p id="verdictOutput"></p>
+
+  <h3>B. Key points to clarify</h3>
+  <ul id="clarifyOutput"></ul>
+
+  <h3>C. Potential issues to watch out for</h3>
+  <ul id="issuesOutput"></ul>
+
+  <h3>D. Suggested response strategy</h3>
+  <p id="strategyOutput"></p>
+
+  <br />
+
+  <!-- CTAs -->
+  <button id="draftReplyBtn">Draft your first reply</button>
+  <button id="setupWorkspaceBtn">Set up your workspace</button>
 
   <script src="script.js"></script>
+
 </body>
 </html>
